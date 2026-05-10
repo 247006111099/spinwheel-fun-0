@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Truth or Dare – SpinDecide</title>
+  <meta name="theme-color" content="#0f0f1a">
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .td-page { min-height: 100vh; }
+
+    .td-layout {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 24px 20px 60px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .td-title {
+      font-size: 1.6rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent-1), var(--accent-purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-align: center;
+    }
+
+    /* Wheel */
+    .td-wheel-wrap {
+      position: relative;
+      width: 300px;
+      height: 300px;
+      flex-shrink: 0;
+    }
+
+    #tdCanvas { display: block; }
+
+    .td-pointer {
+      position: absolute;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 2rem;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));
+      z-index: 2;
+    }
+
+    /* Spin button */
+    .td-spin-btn {
+      background: linear-gradient(135deg, var(--accent-1), var(--accent-purple));
+      color: white;
+      border: none;
+      border-radius: 50px;
+      padding: 16px 48px;
+      font-family: var(--font-main);
+      font-size: 1.1rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s;
+      letter-spacing: 0.05em;
+    }
+    .td-spin-btn:hover { opacity: 0.9; transform: translateY(-2px); }
+    .td-spin-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* Result card */
+    .td-result {
+      width: 100%;
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      display: none;
+      animation: slideUp 0.4s ease;
+    }
+    .td-result.visible { display: block; }
+    .td-result.truth {
+      background: linear-gradient(135deg, rgba(77,150,255,0.15), rgba(107,203,255,0.1));
+      border: 1px solid rgba(77,150,255,0.35);
+    }
+    .td-result.dare {
+      background: linear-gradient(135deg, rgba(255,107,107,0.15), rgba(255,154,60,0.1));
+      border: 1px solid rgba(255,107,107,0.35);
+    }
+    .td-result-badge {
+      display: inline-block;
+      padding: 4px 16px;
+      border-radius: 50px;
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      margin-bottom: 14px;
+    }
+    .truth .td-result-badge { background: rgba(77,150,255,0.2); color: var(--accent-4); }
+    .dare  .td-result-badge { background: rgba(255,107,107,0.2); color: var(--accent-1); }
+    .td-result-text {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      line-height: 1.6;
+      margin-bottom: 18px;
+    }
+    .td-result-actions { display: flex; gap: 10px; }
+    .td-btn-again {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 8px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: var(--font-main);
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .td-btn-again:hover { border-color: var(--accent-4); color: var(--accent-4); }
+
+    /* Custom questions panel */
+    .td-panel {
+      width: 100%;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+    .td-panel-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 14px;
+    }
+    .td-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .td-tab {
+      flex: 1;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: none;
+      color: var(--text-secondary);
+      font-family: var(--font-main);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .td-tab.active-truth { background: rgba(77,150,255,0.15); border-color: rgba(77,150,255,0.4); color: var(--accent-4); }
+    .td-tab.active-dare  { background: rgba(255,107,107,0.15); border-color: rgba(255,107,107,0.4); color: var(--accent-1); }
+    .td-input-row { display: flex; gap: 8px; margin-bottom: 12px; }
+    .td-input-row input {
+      flex: 1;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text-primary);
+      font-family: var(--font-main);
+      font-size: 0.9rem;
+    }
+    .td-input-row input:focus { outline: none; border-color: var(--accent-4); }
+    .td-btn-add {
+      background: linear-gradient(135deg, var(--accent-4), var(--accent-purple));
+      color: white; border: none; border-radius: 8px;
+      padding: 10px 16px; cursor: pointer;
+      font-family: var(--font-main); font-size: 0.85rem; font-weight: 700;
+    }
+    .td-list { display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; }
+    .td-list-item {
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--bg-input); border-radius: 8px;
+      padding: 8px 12px; font-size: 0.85rem; color: var(--text-secondary);
+      animation: slideIn 0.2s ease;
+    }
+    .td-list-item button {
+      background: none; border: none; color: var(--text-muted);
+      cursor: pointer; font-size: 1rem; padding: 0 4px;
+      transition: color 0.2s;
+    }
+    .td-list-item button:hover { color: var(--accent-1); }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 480px) {
+      .td-wheel-wrap { width: 260px; height: 260px; }
+    }
+  </style>
+</head>
+<body class="td-page">
+
+  <nav class="navbar">
+    <div class="nav-logo">
+      <span>🎯</span>
+      <span class="nav-appname">SpinDecide</span>
+    </div>
+    <div class="nav-links">
+      <a href="home.html" class="nav-link">🏠 Home</a>
+    </div>
+    <div class="nav-user">
+      <div class="avatar" id="userAvatar">?</div>
+      <span class="username" id="userName">…</span>
+      <button class="btn-logout" onclick="logoutUser()">Keluar</button>
+    </div>
+  </nav>
+
+  <div class="td-layout">
+    <div class="td-title">🔥 Truth or Dare</div>
+
+    <!-- Wheel -->
+    <div class="td-wheel-wrap">
+      <div class="td-pointer">▼</div>
+      <canvas id="tdCanvas" width="300" height="300"></canvas>
+    </div>
+
+    <!-- Spin button -->
+    <button class="td-spin-btn" id="tdSpinBtn" onclick="tdSpin()">🎲 PUTAR!</button>
+
+    <!-- Result -->
+    <div class="td-result" id="tdResult">
+      <div class="td-result-badge" id="tdBadge">TRUTH</div>
+      <div class="td-result-text" id="tdResultText">–</div>
+      <div class="td-result-actions">
+        <button class="td-btn-again" onclick="tdSpin()">🔄 Putar Lagi</button>
+      </div>
+    </div>
+
+    <!-- Custom questions -->
+    <div class="td-panel">
+      <div class="td-panel-title">✏️ Kustomisasi Pertanyaan</div>
+      <div class="td-tabs">
+        <button class="td-tab active-truth" id="tabTruth" onclick="switchTab('truth')">🤔 Truth</button>
+        <button class="td-tab" id="tabDare"  onclick="switchTab('dare')">💪 Dare</button>
+      </div>
+      <div class="td-input-row">
+        <input type="text" id="tdInput" placeholder="Tambah pertanyaan/tantangan…" onkeydown="if(event.key==='Enter') tdAddItem()">
+        <button class="td-btn-add" onclick="tdAddItem()">+ Tambah</button>
+      </div>
+      <div class="td-list" id="tdList"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="supabase.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    // ── Auth ──────────────────────────────────────────────────
+    (async function init() {
+      const session = await requireAuth();
+      const user = session.user;
+      const name = user.user_metadata?.name || user.email.split('@')[0];
+      document.getElementById('userName').textContent = name;
+      document.getElementById('userAvatar').textContent = name.charAt(0).toUpperCase();
+      drawWheel();
+    })();
+
+    // ── Data ──────────────────────────────────────────────────
+    const TRUTHS = [
+      'Apa hal paling memalukan yang pernah kamu lakukan?',
+      'Siapa orang yang paling kamu suka diam-diam?',
+      'Apa kebohongan terbesar yang pernah kamu katakan?',
+      'Apa hal yang paling kamu takutkan dalam hidup?',
+      'Pernahkah kamu menangis karena film/lagu? Apa itu?',
+      'Apa rahasia yang belum pernah kamu ceritakan ke siapapun?',
+      'Siapa yang paling kamu kagumi di ruangan ini? Kenapa?',
+      'Apa yang paling kamu sesali dalam hidupmu?',
+      'Pernah berbuat curang saat ujian? Ceritakan!',
+      'Siapa orang yang paling sering kamu stalk di medsos?',
+    ];
+    const DARES = [
+      'Lakukan 15 push-up sekarang!',
+      'Nyanyikan lagu favorit keras-keras selama 30 detik!',
+      'Kirim pesan "Aku kangen kamu" ke kontak pertama di HP-mu!',
+      'Tiru suara hewan selama 1 menit tanpa berhenti!',
+      'Minum segelas air dalam satu tegukan!',
+      'Lakukan 20 jumping jack!',
+      'Ceritakan lelucon paling lucu yang kamu tau!',
+      'Tiru gaya berjalan orang paling kocak yang kamu kenal!',
+      'Screenshot foto pertama di galerimu dan tunjukkan ke semua!',
+      'Lakukan robot dance selama 30 detik!',
+    ];
+
+    let customTruths = [...TRUTHS];
+    let customDares  = [...DARES];
+    let currentTab   = 'truth';
+    let isSpinning   = false;
+    let angle        = 0;
+    let animId       = null;
+
+    // ── Canvas ────────────────────────────────────────────────
+    const canvas = document.getElementById('tdCanvas');
+    const ctx    = canvas.getContext('2d');
+    const W      = canvas.width;
+    const cx     = W / 2, cy = W / 2, r = W / 2 - 4;
+
+    function drawWheel(a = angle) {
+      ctx.clearRect(0, 0, W, W);
+      const sections = [
+        { label: 'TRUTH', emoji: '🤔', color: '#4D96FF' },
+        { label: 'DARE',  emoji: '💪', color: '#FF6B6B' },
+      ];
+      sections.forEach((s, i) => {
+        const start = a + i * Math.PI;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, r, start, start + Math.PI);
+        ctx.fillStyle = s.color;
+        ctx.fill();
+      });
+      // divider line
+      ctx.beginPath();
+      ctx.moveTo(cx + r * Math.cos(a), cy + r * Math.sin(a));
+      ctx.lineTo(cx + r * Math.cos(a + Math.PI), cy + r * Math.sin(a + Math.PI));
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      // border circle
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      // labels
+      sections.forEach((s, i) => {
+        const mid = a + i * Math.PI + Math.PI / 2;
+        const lx = cx + r * 0.55 * Math.cos(mid);
+        const ly = cy + r * 0.55 * Math.sin(mid);
+        ctx.save();
+        ctx.translate(lx, ly);
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 15px Sora, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(s.emoji + ' ' + s.label, 0, 0);
+        ctx.restore();
+      });
+      // center dot
+      ctx.beginPath();
+      ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+      ctx.fillStyle = '#1A1A2E';
+      ctx.fill();
+    }
+
+    // ── Spin ──────────────────────────────────────────────────
+    function tdSpin() {
+      if (isSpinning) return;
+      isSpinning = true;
+      document.getElementById('tdSpinBtn').disabled = true;
+      document.getElementById('tdResult').classList.remove('visible');
+
+      const totalRotation = (Math.PI * 2) * (4 + Math.random() * 4);
+      const duration = 3000 + Math.random() * 1000;
+      const startAngle = angle;
+      const startTime = performance.now();
+
+      function animate(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const ease = 1 - Math.pow(1 - progress, 3);
+        angle = startAngle + totalRotation * ease;
+        drawWheel(angle);
+        if (progress < 1) {
+          animId = requestAnimationFrame(animate);
+        } else {
+          isSpinning = false;
+          document.getElementById('tdSpinBtn').disabled = false;
+          showResult();
+        }
+      }
+      animId = requestAnimationFrame(animate);
+    }
+
+    function showResult() {
+      const normalized = angle % (Math.PI * 2);
+      const isTruth = normalized < Math.PI;
+      const list = isTruth ? customTruths : customDares;
+      const q = list[Math.floor(Math.random() * list.length)];
+
+      const result = document.getElementById('tdResult');
+      const badge  = document.getElementById('tdBadge');
+      const text   = document.getElementById('tdResultText');
+
+      result.className = 'td-result visible ' + (isTruth ? 'truth' : 'dare');
+      badge.textContent = isTruth ? '🤔 TRUTH' : '💪 DARE';
+      text.textContent  = q;
+    }
+
+    // ── Custom questions ──────────────────────────────────────
+    function switchTab(tab) {
+      currentTab = tab;
+      document.getElementById('tabTruth').className = 'td-tab' + (tab === 'truth' ? ' active-truth' : '');
+      document.getElementById('tabDare').className  = 'td-tab' + (tab === 'dare'  ? ' active-dare'  : '');
+      renderList();
+    }
+
+    function renderList() {
+      const list = currentTab === 'truth' ? customTruths : customDares;
+      const el = document.getElementById('tdList');
+      el.innerHTML = list.map((item, i) => `
+        <div class="td-list-item">
+          <span>${item}</span>
+          <button onclick="tdRemove(${i})">✕</button>
+        </div>
+      `).join('');
+    }
+
+    function tdAddItem() {
+      const input = document.getElementById('tdInput');
+      const val = input.value.trim();
+      if (!val) return;
+      if (currentTab === 'truth') customTruths.push(val);
+      else customDares.push(val);
+      input.value = '';
+      renderList();
+    }
+
+    function tdRemove(i) {
+      if (currentTab === 'truth') customTruths.splice(i, 1);
+      else customDares.splice(i, 1);
+      renderList();
+    }
+
+    // Toast
+    function showToast(msg, type = 'success') {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = `toast visible toast-${type}`;
+      setTimeout(() => t.className = 'toast', 2500);
+    }
+
+    renderList();
+  </script>
+</body>
+</html>

@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pilih Mode – SpinDecide</title>
+  <meta name="theme-color" content="#0f0f1a">
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* ── Home / Mode Selector ── */
+    .home-page {
+      min-height: 100vh;
+      background:
+        radial-gradient(ellipse at 20% 30%, rgba(77,150,255,0.07) 0%, transparent 55%),
+        radial-gradient(ellipse at 80% 70%, rgba(199,125,255,0.07) 0%, transparent 55%),
+        var(--bg-base);
+    }
+
+    .home-hero {
+      text-align: center;
+      padding: 48px 20px 32px;
+    }
+
+    .home-hero h1 {
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      background: linear-gradient(135deg, var(--accent-4), var(--accent-purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 10px;
+    }
+
+    .home-hero p {
+      color: var(--text-secondary);
+      font-size: clamp(0.85rem, 2vw, 1rem);
+    }
+
+    /* ── Mode Grid ── */
+    .mode-container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 20px 60px;
+    }
+
+    /* Row 1: 2 kartu lebar */
+    .mode-row-wide {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    /* Row 2: 3 kartu */
+    .mode-row-three {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .mode-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      cursor: pointer;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+      position: relative;
+      overflow: hidden;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .mode-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity 0.3s;
+      border-radius: inherit;
+    }
+
+    .mode-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+      text-decoration: none;
+    }
+
+    /* Wide card: horizontal layout */
+    .mode-card.wide {
+      flex-direction: row;
+    }
+
+    /* Three-col card: vertical layout */
+    .mode-row-three .mode-card {
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 32px 20px;
+      gap: 14px;
+    }
+
+    /* Icon */
+    .mode-icon {
+      flex-shrink: 0;
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+    }
+
+    .mode-row-three .mode-icon {
+      width: 72px;
+      height: 72px;
+      border-radius: 20px;
+      font-size: 36px;
+    }
+
+    /* Text */
+    .mode-info { flex: 1; }
+
+    .mode-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .mode-row-three .mode-title {
+      font-size: 1.05rem;
+    }
+
+    .mode-desc {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* Arrow for wide cards */
+    .mode-arrow {
+      color: var(--text-muted);
+      font-size: 1.2rem;
+      flex-shrink: 0;
+      transition: transform 0.2s, color 0.2s;
+    }
+    .mode-card:hover .mode-arrow {
+      transform: translateX(4px);
+      color: var(--text-secondary);
+    }
+
+    /* Color themes per card */
+    .card-spin       { border-color: rgba(77,150,255,0.25); }
+    .card-spin:hover { border-color: rgba(77,150,255,0.5); box-shadow: 0 12px 40px rgba(77,150,255,0.12); }
+    .card-spin .mode-icon { background: rgba(77,150,255,0.15); }
+
+    .card-history       { border-color: rgba(107,203,119,0.25); }
+    .card-history:hover { border-color: rgba(107,203,119,0.5); box-shadow: 0 12px 40px rgba(107,203,119,0.12); }
+    .card-history .mode-icon { background: rgba(107,203,119,0.15); }
+
+    .card-truth       { border-color: rgba(255,107,107,0.25); }
+    .card-truth:hover { border-color: rgba(255,107,107,0.5); box-shadow: 0 12px 40px rgba(255,107,107,0.12); }
+    .card-truth .mode-icon { background: rgba(255,107,107,0.15); }
+
+    .card-double       { border-color: rgba(255,217,61,0.25); }
+    .card-double:hover { border-color: rgba(255,217,61,0.5); box-shadow: 0 12px 40px rgba(255,217,61,0.12); }
+    .card-double .mode-icon { background: rgba(255,217,61,0.15); }
+
+    .card-room       { border-color: rgba(199,125,255,0.25); }
+    .card-room:hover { border-color: rgba(199,125,255,0.5); box-shadow: 0 12px 40px rgba(199,125,255,0.12); }
+    .card-room .mode-icon { background: rgba(199,125,255,0.15); }
+
+    /* Badge "Segera Hadir" */
+    .badge-soon {
+      display: inline-block;
+      background: rgba(199,125,255,0.15);
+      border: 1px solid rgba(199,125,255,0.3);
+      color: var(--accent-purple);
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 50px;
+      letter-spacing: 0.05em;
+      margin-top: 6px;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .mode-row-wide {
+        grid-template-columns: 1fr;
+      }
+      .mode-row-three {
+        grid-template-columns: 1fr;
+      }
+      .mode-row-three .mode-card {
+        flex-direction: row;
+        text-align: left;
+        align-items: center;
+        padding: 20px;
+        gap: 16px;
+      }
+      .mode-row-three .mode-icon {
+        width: 52px;
+        height: 52px;
+        font-size: 26px;
+        border-radius: 14px;
+      }
+      .home-hero { padding: 32px 20px 24px; }
+    }
+
+    @media (min-width: 641px) and (max-width: 900px) {
+      .mode-row-three {
+        grid-template-columns: repeat(3, 1fr);
+      }
+      .mode-row-three .mode-card {
+        padding: 24px 16px;
+      }
+      .mode-row-three .mode-icon {
+        width: 60px;
+        height: 60px;
+        font-size: 30px;
+      }
+    }
+  </style>
+</head>
+<body class="home-page">
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="nav-logo">
+      <span>🎯</span>
+      <span class="nav-appname">SpinDecide</span>
+    </div>
+    <div class="nav-user">
+      <div class="avatar" id="userAvatar">?</div>
+      <span class="username" id="userName">Loading…</span>
+      <button class="btn-logout" onclick="logoutUser()">Keluar</button>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <div class="home-hero">
+    <h1>Pilih Mode Permainan</h1>
+    <p>Tentukan pilihan, selesaikan tugas, atau seru-seruan bareng tim!</p>
+  </div>
+
+  <!-- Mode Cards -->
+  <div class="mode-container">
+
+    <!-- Row 1: Spin + History (wide, horizontal) -->
+    <div class="mode-row-wide">
+
+      <a href="dashboard.html" class="mode-card wide card-spin">
+        <div class="mode-icon">🎰</div>
+        <div class="mode-info">
+          <div class="mode-title">Spin Normal &amp; Weighted</div>
+          <div class="mode-desc">Putar roda dengan probabilitas acak biasa atau atur bobot peluangnya.</div>
+        </div>
+        <span class="mode-arrow">›</span>
+      </a>
+
+      <a href="history.html" class="mode-card wide card-history">
+        <div class="mode-icon">📋</div>
+        <div class="mode-info">
+          <div class="mode-title">Riwayat Putaran</div>
+          <div class="mode-desc">Lihat kembali semua hasil dan keputusan yang sudah dibuat.</div>
+        </div>
+        <span class="mode-arrow">›</span>
+      </a>
+
+    </div>
+
+    <!-- Row 2: Truth or Dare + Double Spin + Main Bareng (3 col, vertical) -->
+    <div class="mode-row-three">
+
+      <a href="truth_dare.html" class="mode-card card-truth">
+        <div class="mode-icon">🎭</div>
+        <div class="mode-info">
+          <div class="mode-title">Truth or Dare</div>
+          <div class="mode-desc">Masukan nama dan tantangan kustom untuk seru-seruan.</div>
+        </div>
+      </a>
+
+      <a href="double_spin.html" class="mode-card card-double">
+        <div class="mode-icon">🎯</div>
+        <div class="mode-info">
+          <div class="mode-title">Double Spin</div>
+          <div class="mode-desc">Dua roda sekaligus. Bagi tugas kelompok dengan adil dan otomatis.</div>
+        </div>
+      </a>
+
+      <a href="spin_bareng.html" class="mode-card card-room">
+        <div class="mode-icon">👥</div>
+        <div class="mode-info">
+          <div class="mode-title">Main Bareng (Room)</div>
+          <div class="mode-desc">Bikin room, undang teman, dan putar roda secara real-time.</div>
+          <span class="badge-soon">Segera Hadir</span>
+        </div>
+      </a>
+
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="supabase.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    (async function init() {
+      const session = await requireAuth();
+      const user = session.user;
+      const name = user.user_metadata?.name || user.email.split('@')[0];
+      document.getElementById('userName').textContent = name;
+      document.getElementById('userAvatar').textContent = name.charAt(0).toUpperCase();
+    })();
+  </script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
+  </script>
+
+</body>
+</html>

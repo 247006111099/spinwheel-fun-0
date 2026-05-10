@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Double Spin – SpinDecide</title>
+  <meta name="theme-color" content="#0f0f1a">
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .ds-page { min-height: 100vh; }
+
+    .ds-layout {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 24px 20px 60px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .ds-title {
+      font-size: 1.6rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #4D96FF, #FFD93D);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-align: center;
+    }
+    .ds-subtitle { color: var(--text-secondary); font-size: 0.9rem; text-align: center; margin-top: -12px; }
+
+    /* Wheels row */
+    .ds-wheels {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      flex-wrap: wrap;
+      width: 100%;
+    }
+
+    .ds-wheel-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      min-width: 220px;
+    }
+
+    .ds-wheel-label {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .ds-wheel-wrap {
+      position: relative;
+      width: 240px;
+      height: 240px;
+    }
+
+    .ds-pointer {
+      position: absolute;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 1.8rem;
+      z-index: 2;
+    }
+
+    .ds-winner-tag {
+      font-size: 0.9rem;
+      font-weight: 700;
+      padding: 4px 14px;
+      border-radius: 50px;
+      min-height: 28px;
+      text-align: center;
+    }
+    .ds-winner-a { background: rgba(77,150,255,0.15); color: #4D96FF; border: 1px solid rgba(77,150,255,0.3); }
+    .ds-winner-b { background: rgba(255,107,107,0.15); color: #FF6B6B; border: 1px solid rgba(255,107,107,0.3); }
+
+    /* Spin button */
+    .ds-spin-btn {
+      background: linear-gradient(135deg, #4D96FF, #FFD93D);
+      color: #1A1A2E;
+      border: none;
+      border-radius: 50px;
+      padding: 16px 52px;
+      font-family: var(--font-main);
+      font-size: 1.1rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s;
+      letter-spacing: 0.04em;
+    }
+    .ds-spin-btn:hover { opacity: 0.9; transform: translateY(-2px); }
+    .ds-spin-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* Combo result */
+    .ds-combo {
+      width: 100%;
+      display: none;
+      background: linear-gradient(135deg, rgba(107,203,119,0.12), rgba(78,205,196,0.12));
+      border: 1px solid rgba(107,203,119,0.3);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      text-align: center;
+      animation: slideUp 0.4s ease;
+    }
+    .ds-combo.visible { display: block; }
+    .ds-combo-label { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px; }
+    .ds-combo-value { font-size: 1.4rem; font-weight: 800; color: var(--text-primary); }
+
+    /* Edit panels */
+    .ds-panels {
+      display: flex;
+      gap: 16px;
+      width: 100%;
+      flex-wrap: wrap;
+    }
+
+    .ds-panel {
+      flex: 1;
+      min-width: 240px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+    }
+
+    .ds-panel-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 12px;
+    }
+
+    .ds-panel-title.a { color: #4D96FF; }
+    .ds-panel-title.b { color: #FF6B6B; }
+
+    .ds-input-row { display: flex; gap: 8px; margin-bottom: 10px; }
+    .ds-input-row input {
+      flex: 1;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 12px;
+      color: var(--text-primary);
+      font-family: var(--font-main);
+      font-size: 0.85rem;
+    }
+    .ds-input-row input:focus { outline: none; border-color: var(--accent-4); }
+
+    .ds-btn-add-a, .ds-btn-add-b {
+      border: none; border-radius: 8px; padding: 9px 14px;
+      cursor: pointer; font-family: var(--font-main);
+      font-size: 0.85rem; font-weight: 700; color: white;
+    }
+    .ds-btn-add-a { background: #4D96FF; }
+    .ds-btn-add-b { background: #FF6B6B; }
+
+    .ds-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ds-chip {
+      display: flex; align-items: center; gap: 4px;
+      padding: 4px 10px 4px 12px;
+      border-radius: 50px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      animation: slideIn 0.2s ease;
+    }
+    .ds-chip.a { background: rgba(77,150,255,0.12); color: #4D96FF; border: 1px solid rgba(77,150,255,0.25); }
+    .ds-chip.b { background: rgba(255,107,107,0.12); color: #FF6B6B; border: 1px solid rgba(255,107,107,0.25); }
+    .ds-chip button {
+      background: none; border: none; cursor: pointer;
+      font-size: 0.75rem; color: inherit; opacity: 0.6; padding: 0;
+      line-height: 1;
+    }
+    .ds-chip button:hover { opacity: 1; }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 560px) {
+      .ds-wheel-wrap { width: 200px; height: 200px; }
+      .ds-wheels { gap: 12px; }
+    }
+  </style>
+</head>
+<body class="ds-page">
+
+  <nav class="navbar">
+    <div class="nav-logo">
+      <span>🎯</span>
+      <span class="nav-appname">SpinDecide</span>
+    </div>
+    <div class="nav-links">
+      <a href="home.html" class="nav-link">🏠 Home</a>
+    </div>
+    <div class="nav-user">
+      <div class="avatar" id="userAvatar">?</div>
+      <span class="username" id="userName">…</span>
+      <button class="btn-logout" onclick="logoutUser()">Keluar</button>
+    </div>
+  </nav>
+
+  <div class="ds-layout">
+    <div class="ds-title">🎯 Double Spin</div>
+    <div class="ds-subtitle">Dua roda berputar bersamaan — cocok untuk bagi tugas kelompok!</div>
+
+    <!-- Wheels -->
+    <div class="ds-wheels">
+      <div class="ds-wheel-col">
+        <div class="ds-wheel-label" style="color:#4D96FF;">🎡 Roda A</div>
+        <div class="ds-wheel-wrap">
+          <div class="ds-pointer">▼</div>
+          <canvas id="canvasA" width="240" height="240"></canvas>
+        </div>
+        <div class="ds-winner-tag ds-winner-a" id="winnerA">–</div>
+      </div>
+
+      <div style="display:flex;align-items:center;font-size:1.8rem;color:var(--text-muted);padding-top:24px;">✕</div>
+
+      <div class="ds-wheel-col">
+        <div class="ds-wheel-label" style="color:#FF6B6B;">🎡 Roda B</div>
+        <div class="ds-wheel-wrap">
+          <div class="ds-pointer">▼</div>
+          <canvas id="canvasB" width="240" height="240"></canvas>
+        </div>
+        <div class="ds-winner-tag ds-winner-b" id="winnerB">–</div>
+      </div>
+    </div>
+
+    <!-- Spin button -->
+    <button class="ds-spin-btn" id="dsSpinBtn" onclick="dsSpin()">🎯 DOUBLE SPIN!</button>
+
+    <!-- Combo result -->
+    <div class="ds-combo" id="dsCombo">
+      <div class="ds-combo-label">🎯 Kombinasi Terpilih!</div>
+      <div class="ds-combo-value" id="dsComboVal">–</div>
+    </div>
+
+    <!-- Edit panels -->
+    <div class="ds-panels">
+      <div class="ds-panel">
+        <div class="ds-panel-title a">✏️ Edit Roda A</div>
+        <div class="ds-input-row">
+          <input type="text" id="inputA" placeholder="Tambah pilihan A…" onkeydown="if(event.key==='Enter') addA()">
+          <button class="ds-btn-add-a" onclick="addA()">+</button>
+        </div>
+        <div class="ds-chips" id="chipsA"></div>
+      </div>
+
+      <div class="ds-panel">
+        <div class="ds-panel-title b">✏️ Edit Roda B</div>
+        <div class="ds-input-row">
+          <input type="text" id="inputB" placeholder="Tambah pilihan B…" onkeydown="if(event.key==='Enter') addB()">
+          <button class="ds-btn-add-b" onclick="addB()">+</button>
+        </div>
+        <div class="ds-chips" id="chipsB"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="supabase.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    // ── Auth ──────────────────────────────────────────────────
+    (async function init() {
+      const session = await requireAuth();
+      const user = session.user;
+      const name = user.user_metadata?.name || user.email.split('@')[0];
+      document.getElementById('userName').textContent = name;
+      document.getElementById('userAvatar').textContent = name.charAt(0).toUpperCase();
+      drawA(); drawB(); renderChips();
+    })();
+
+    // ── Data ──────────────────────────────────────────────────
+    let optA = ['Alice', 'Bob', 'Charlie', 'Diana'];
+    let optB = ['Presentasi 🎤', 'Notulensi 📝', 'Desain 🎨', 'Riset 🔍'];
+
+    let angleA = 0, angleB = 0;
+    let isSpinning = false;
+
+    const COLORS = ['#FF6B6B','#FFD93D','#6BCB77','#4D96FF','#FF9A3C','#C77DFF','#00C9A7','#F72585'];
+
+    // ── Draw ──────────────────────────────────────────────────
+    function drawWheel(canvas, options, angle) {
+      const ctx = canvas.getContext('2d');
+      const W = canvas.width;
+      const cx = W/2, cy = W/2, r = W/2 - 4;
+      ctx.clearRect(0, 0, W, W);
+
+      if (options.length === 0) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI*2);
+        ctx.fillStyle = '#1c1c33';
+        ctx.fill();
+        return;
+      }
+
+      const slice = (Math.PI*2) / options.length;
+      options.forEach((opt, i) => {
+        const start = angle + i * slice;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, r, start, start + slice);
+        ctx.fillStyle = COLORS[i % COLORS.length];
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // label
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(start + slice/2);
+        ctx.fillStyle = 'white';
+        ctx.font = `bold ${Math.min(13, 100/options.length + 8)}px Sora, sans-serif`;
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = 'rgba(0,0,0,0.4)';
+        ctx.shadowBlur = 4;
+        const label = opt.length > 10 ? opt.slice(0,10)+'…' : opt;
+        ctx.fillText(label, r - 10, 0);
+        ctx.restore();
+      });
+
+      // border
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI*2);
+      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // center
+      ctx.beginPath(); ctx.arc(cx, cy, 14, 0, Math.PI*2);
+      ctx.fillStyle = 'white'; ctx.fill();
+      ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI*2);
+      ctx.fillStyle = '#1A1A2E'; ctx.fill();
+    }
+
+    function drawA(a = angleA) { drawWheel(document.getElementById('canvasA'), optA, a); }
+    function drawB(b = angleB) { drawWheel(document.getElementById('canvasB'), optB, b); }
+
+    // ── Spin ──────────────────────────────────────────────────
+    function dsSpin() {
+      if (isSpinning) return;
+      if (optA.length < 2 || optB.length < 2) {
+        showToast('Kedua roda butuh minimal 2 pilihan!', 'error'); return;
+      }
+      isSpinning = true;
+      document.getElementById('dsSpinBtn').disabled = true;
+      document.getElementById('dsCombo').classList.remove('visible');
+      document.getElementById('winnerA').textContent = '–';
+      document.getElementById('winnerB').textContent = '–';
+
+      const rotA = Math.PI*2 * (5 + Math.random()*5);
+      const rotB = Math.PI*2 * (5 + Math.random()*5);
+      const durA = 4000 + Math.random()*800;
+      const durB = 4500 + Math.random()*800;
+      const maxDur = Math.max(durA, durB);
+      const startA = angleA, startB = angleB;
+      const t0 = performance.now();
+
+      let doneA = false, doneB = false;
+
+      function animate(now) {
+        const elapsed = now - t0;
+
+        if (elapsed < durA) {
+          const p = elapsed / durA;
+          const e = 1 - Math.pow(1-p, 3);
+          angleA = startA + rotA * e;
+          drawA(angleA);
+        } else if (!doneA) {
+          doneA = true;
+          const idxA = calcWinner(angleA, optA.length);
+          document.getElementById('winnerA').textContent = optA[idxA];
+        }
+
+        if (elapsed < durB) {
+          const p = elapsed / durB;
+          const e = 1 - Math.pow(1-p, 3);
+          angleB = startB + rotB * e;
+          drawB(angleB);
+        } else if (!doneB) {
+          doneB = true;
+          const idxB = calcWinner(angleB, optB.length);
+          document.getElementById('winnerB').textContent = optB[idxB];
+        }
+
+        if (elapsed < maxDur) {
+          requestAnimationFrame(animate);
+        } else {
+          isSpinning = false;
+          document.getElementById('dsSpinBtn').disabled = false;
+          showCombo();
+        }
+      }
+      requestAnimationFrame(animate);
+    }
+
+    function calcWinner(angle, count) {
+      const slice = (Math.PI*2) / count;
+      const norm  = angle % (Math.PI*2);
+      const a     = (Math.PI*2 - norm) % (Math.PI*2);
+      return Math.floor(a / slice) % count;
+    }
+
+    function showCombo() {
+      const iA = calcWinner(angleA, optA.length);
+      const iB = calcWinner(angleB, optB.length);
+      document.getElementById('winnerA').textContent = optA[iA];
+      document.getElementById('winnerB').textContent = optB[iB];
+      document.getElementById('dsComboVal').textContent = `${optA[iA]}  ✕  ${optB[iB]}`;
+      document.getElementById('dsCombo').classList.add('visible');
+    }
+
+    // ── Chips ──────────────────────────────────────────────────
+    function renderChips() {
+      const ca = document.getElementById('chipsA');
+      const cb = document.getElementById('chipsB');
+      ca.innerHTML = optA.map((o,i) => `
+        <div class="ds-chip a"><span>${o}</span><button onclick="removeA(${i})">✕</button></div>`).join('');
+      cb.innerHTML = optB.map((o,i) => `
+        <div class="ds-chip b"><span>${o}</span><button onclick="removeB(${i})">✕</button></div>`).join('');
+    }
+
+    function addA() {
+      const v = document.getElementById('inputA').value.trim();
+      if (!v) return;
+      optA.push(v); document.getElementById('inputA').value = '';
+      drawA(); renderChips();
+    }
+    function addB() {
+      const v = document.getElementById('inputB').value.trim();
+      if (!v) return;
+      optB.push(v); document.getElementById('inputB').value = '';
+      drawB(); renderChips();
+    }
+    function removeA(i) { optA.splice(i,1); drawA(); renderChips(); }
+    function removeB(i) { optB.splice(i,1); drawB(); renderChips(); }
+
+    function showToast(msg, type='success') {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = `toast visible toast-${type}`;
+      setTimeout(() => t.className = 'toast', 2500);
+    }
+  </script>
+</body>
+</html>
